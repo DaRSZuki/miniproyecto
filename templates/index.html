@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procesador de Audio</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .audio-item {
+            transition: all 0.3s;
+        }
+        .audio-item:hover {
+            background-color: #f5f5f5;
+        }
+        .audio-item.active {
+            background-color: #e3f2fd;
+            border-left: 4px solid #0d6efd;
+        }
+        .waveform-container {
+            height: 200px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .waveform-img {
+            max-width: 100%;
+            max-height: 200px;
+        }
+        .player-controls {
+            display: flex;
+            justify-content: center;
+            margin: 15px 0;
+        }
+        .player-controls button {
+            margin: 0 10px;
+        }
+        .playlist-header {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px 5px 0 0;
+            font-weight: bold;
+        }
+        #playlist {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .operation-panel {
+            border-left: 1px solid #dee2e6;
+            height: 100%;
+        }
+        .file-label {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+        }
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading d-none">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+    </div>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-music me-2"></i> Procesador de Audio
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Reproductor</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="waveform-container mb-3">
+                            <img id="waveform" class="waveform-img d-none" src="" alt="Forma de onda">
+                            <div id="no-audio-message" class="text-muted text-center">
+                                <i class="fas fa-waveform fa-3x mb-3"></i>
+                                <p>Selecciona un archivo de audio para visualizar su forma de onda</p>
+                            </div>
+                        </div>
+                        
+                        <div class="player-controls">
+                            <button id="prev-btn" class="btn btn-outline-secondary" disabled>
+                                <i class="fas fa-step-backward"></i>
+                            </button>
+                            <button id="play-pause-btn" class="btn btn-primary" disabled>
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button id="next-btn" class="btn btn-outline-secondary" disabled>
+                                <i class="fas fa-step-forward"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="progress">
+                            <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-2">
+                            <small id="current-time">0:00</small>
+                            <small id="duration">0:00</small>
+                        </div>
+
+                        <div class="mt-4">
+                            <h6>Información del audio</h6>
+                            <table class="table table-sm">
+                                <tbody>
+                                    <tr>
+                                        <th scope="row">Nombre:</th>
+                                        <td id="audio-name">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Duración:</th>
+                                        <td id="audio-duration">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Frecuencia de muestreo:</th>
+                                        <td id="audio-samplerate">-</td>
+                                    </tr>
+                                    <tr>
+                                        <th scope="row">Canales:</th>
+                                        <td id="audio-channels">-</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Playlist</h5>
+                        <span id="file-count" class="badge bg-primary">0/10</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="playlist-header px-3 py-2">
+                            <div class="row">
+                                <div class="col-8">Nombre</div>
+                                <div class="col-4 text-end">Acciones</div>
+                            </div>
+                        </div>
+                        <div id="playlist" class="list-group list-group-flush">
+                            <div class="text-center py-5 text-muted">
+                                <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                                <p>No hay archivos. Sube algunos para comenzar.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <form id="upload-form" enctype="multipart/form-data">
+                            <div class="input-group">
+                                <input type="file" class="form-control" id="file-input" name="file" accept=".wav">
+                                <button class="btn btn-primary" type="submit" id="upload-btn">
+                                    <i class="fas fa-upload"></i> Subir
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">Operaciones</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted small mb-3">Selecciona un archivo y aplica una operación:</p>
+                        <div class="d-grid gap-2">
+                            <button id="btn-reverse" class="btn btn-outline-primary" disabled>
+                                <i class="fas fa-exchange-alt me-2"></i> Invertir Audio
+                            </button>
+                            <button id="btn-amplify" class="btn btn-outline-primary" disabled>
+                                <i class="fas fa-volume-up me-2"></i> Amplificar (x1.5)
+                            </button>
+                            <button id="btn-speed" class="btn btn-outline-primary" disabled>
+                                <i class="fas fa-fast-forward me-2"></i> Cambiar Velocidad
+                            </button>
+                            <button id="btn-extract" class="btn btn-outline-primary" disabled>
+                                <i class="fas fa-cut me-2"></i> Extraer Segmento
+                            </button>
+                            <button id="btn-swap" class="btn btn-outline-primary" disabled>
+                                <i class="fas fa-random me-2"></i> Intercambiar Canales
+                            </button>
+                            <button id="btn-sample-rate" class="btn btn-outline-primary" disabled>
+                                <i class="fas fa-waveform me-2"></i> Cambiar Frecuencia
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal fade" id="speedModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cambiar Velocidad</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="speed-factor" class="form-label">Factor de velocidad:</label>
+                        <input type="range" class="form-range" id="speed-factor" min="0.5" max="2" step="0.1" value="1">
+                        <div class="text-center" id="speed-value">1.0x</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="apply-speed">Aplicar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="extractModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Extraer Segmento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="start-time" class="form-label">Tiempo inicial (segundos):</label>
+                        <input type="number" class="form-control" id="start-time" min="0" step="0.1" value="0">
+                    </div>
+                    <div class="mb-3">
+                        <label for="duration" class="form-label">Duración (segundos):</label>
+                        <input type="number" class="form-control" id="duration" min="0.1" step="0.1" value="30">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="apply-extract">Aplicar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="sampleRateModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cambiar Frecuencia de Muestreo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="sample-rate" class="form-label">Frecuencia de muestreo (Hz):</label>
+                        <select class="form-select" id="sample-rate">
+                            <option value="44100">44100 Hz</option>
+                            <option value="22050">22050 Hz</option>
+                            <option value="48000">48000 Hz</option>
+                            <option value="8000">8000 Hz</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="apply-sample-rate">Aplicar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Bootstrap & other JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Variables globales
+    let sessionId = localStorage.getItem('audioProcessorSessionId') || generateSessionId();
+    let audioPlayer = new Audio();
+    let currentFileId = null;
+    let allFiles = [];
+    let isPlaying = false;
+    
+    // Modals
+    let speedModal, extractModal, sampleRateModal;
+    
+    // Función para generar un ID de sesión
+    function generateSessionId() {
+        const id = 'session_' + Math.random().toString(36).substring(2, 15);
+        localStorage.setItem('audioProcessorSessionId', id);
+        return id;
+    }
+    
+    // Formato de tiempo
+    function formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        seconds = Math.floor(seconds % 60);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
+    // Cargar la lista de archivos
+    function loadFileList() {
+        showLoading();
+        fetch(`/files?session_id=${sessionId}`)
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                if (data.success) {
+                    allFiles = data.files;
+                    updatePlaylist();
+                } else {
+                    console.error(data.message);
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Error al cargar la lista de archivos:', error);
+            });
+    }
+    
+    // Actualizar la lista de reproducción
+    function updatePlaylist() {
+        const playlistEl = document.getElementById('playlist');
+        const fileCountEl = document.getElementById('file-count');
+        
+        fileCountEl.textContent = `${allFiles.length}/10`;
+        
+        if (allFiles.length === 0) {
+            playlistEl.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                    <p>No hay archivos. Sube algunos para comenzar.</p>
+                </div>`;
+            return;
+        }
+        
+        playlistEl.innerHTML = '';
+        
+        allFiles.forEach(file => {
+            const item = document.createElement('div');
+            item.className = `audio-item list-group-item list-group-item-action ${file.id === currentFileId ? 'active' : ''}`;
+            item.dataset.fileId = file.id;
+            
+            item.innerHTML = `
+                <div class="row align-items-center">
+                    <div class="col-8">
+                        <div class="file-label" title="${file.filename}">
+                            ${file.processed ? '<i class="fas fa-magic text-primary me-1"></i>' : ''}
+                            ${file.filename}
+                        </div>
+                        <small class="text-muted">${file.duration.toFixed(1)}s</small>
+                    </div>
+                    <div class="col-4 text-end">
+                        <button class="btn btn-sm btn-outline-danger delete-btn" data-file-id="${file.id}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>`;
+            
+            playlistEl.appendChild(item);
+            
+            item.addEventListener('click', (e) => {
+                if (!e.target.closest('.delete-btn')) {
+                    playFile(file.id);
+                }
+            });
+        });
+        
+        // Agregar event listeners para botones de eliminación
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteFile(btn.dataset.fileId);
+            });
+        });
+        
+        // Habilitar/deshabilitar botones de operaciones
+        updateButtonState();
+    }
+    
+    // Actualizar estado de botones
+    function updateButtonState() {
+        const operationButtons = [
+            document.getElementById('btn-reverse'),
+            document.getElementById('btn-amplify'),
+            document.getElementById('btn-speed'),
+            document.getElementById('btn-extract'),
+            document.getElementById('btn-swap'),
+            document.getElementById('btn-sample-rate')
+        ];
+        
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        
+        const hasFile = currentFileId !== null;
+        const fileIndex = allFiles.findIndex(f => f.id === currentFileId);
+        
+        // Habilitar botones de operaciones si hay archivo seleccionado
+        operationButtons.forEach(btn => {
+            btn.disabled = !hasFile;
+        });
+        
+        // Botones de reproducción
+        playPauseBtn.disabled = !hasFile;
+        prevBtn.disabled = !hasFile || fileIndex <= 0;
+        nextBtn.disabled = !hasFile || fileIndex >= allFiles.length - 1;
+    }
+    
+    // Reproducir archivo
+    function playFile(fileId) {
+        const file = allFiles.find(f => f.id === fileId);
+        if (!file) return;
+        
+        currentFileId = fileId;
+        
+        // Actualizar información del audio
+        document.getElementById('audio-name').textContent = file.filename;
+        document.getElementById('audio-duration').textContent = `${file.duration.toFixed(1)} segundos`;
+        document.getElementById('audio-samplerate').textContent = `${file.samplerate} Hz`;
+        document.getElementById('audio-channels').textContent = file.channels;
+        
+        // Actualizar duración
+        document.getElementById('duration').textContent = formatTime(file.duration);
+        
+        // Actualizar playlist
+        document.querySelectorAll('.audio-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.fileId === fileId);
+        });
+        
+        // Cargar el audio
+        audioPlayer.src = `/play/${sessionId}/${fileId}`;
+        audioPlayer.load();
+        
+        // Auto-reproducir
+        audioPlayer.play().then(() => {
+            isPlaying = true;
+            document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-pause"></i>';
+        }).catch(err => {
+            console.error('Error al reproducir:', err);
+        });
+        
+        // Visualizar la forma de onda
+        visualizeAudio(fileId);
+        
+        // Actualizar estado de botones
+        updateButtonState();
+    }
+    
+    // Reproducir el archivo anterior
+    function playPreviousFile() {
+        if (!currentFileId) return;
+        
+        const currentIndex = allFiles.findIndex(f => f.id === currentFileId);
+        if (currentIndex > 0) {
+            playFile(allFiles[currentIndex - 1].id);
+        }
+    }
+    
+    // Reproducir el archivo siguiente
+    function playNextFile() {
+        if (!currentFileId) return;
+        
+        const currentIndex = allFiles.findIndex(f => f.id === currentFileId);
+        if (currentIndex < allFiles.length - 1) {
+            playFile(allFiles[currentIndex + 1].id);
+        }
+    }
+    
+    // Eliminar archivo
+    function deleteFile(fileId) {
+        if (confirm('¿Estás seguro de que deseas eliminar este archivo?')) {
+            showLoading();
+            fetch(`/delete/${sessionId}/${fileId}`, { method: 'DELETE' })
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    if (data.success) {
+                        // Si era el archivo actual, detener reproducción
+                        if (fileId === currentFileId) {
+                            audioPlayer.pause();
+                            audioPlayer.src = '';
+                            currentFileId = null;
+                            document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-play"></i>';
+                            resetAudioInfo();
+                        }
+                        
+                        // Recargar lista
+                        loadFileList();
+                    } else {
+                        alert('Error al eliminar el archivo: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Error al eliminar el archivo:', error);
+                });
+        }
+    }
+    
+    // Visualizar forma de onda
+    function visualizeAudio(fileId) {
+        showLoading();
+        fetch(`/visualize/${sessionId}/${fileId}`)
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                if (data.success) {
+                    const waveform = document.getElementById('waveform');
+                    const noAudioMsg = document.getElementById('no-audio-message');
+                    
+                    waveform.src = `data:image/png;base64,${data.waveform}`;
+                    waveform.classList.remove('d-none');
+                    noAudioMsg.classList.add('d-none');
+                } else {
+                    console.error('Error al visualizar el audio:', data.message);
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Error al visualizar el audio:', error);
+            });
+    }
+    
+    // Procesar audio
+    function processAudio(operation, params = {}) {
+        if (!currentFileId) return;
+        
+        showLoading();
+        
+        const requestData = {
+            session_id: sessionId,
+            file_id: currentFileId,
+            operation: operation,
+            ...params
+        };
+        
+        fetch('/process', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideLoading();
+            if (data.success) {
+                // Recargar lista y reproducir el nuevo archivo
+                loadFileList();
+                setTimeout(() => {
+                    playFile(data.file_info.id);
+                }, 500);
+            } else {
+                alert('Error al procesar el audio: ' + data.message);
+            }
+        })
+        .catch(error => {
+            hideLoading();
+            console.error('Error al procesar el audio:', error);
+        });
+    }
+    
+    // Resetear información de audio
+    function resetAudioInfo() {
+        document.getElementById('audio-name').textContent = '-';
+        document.getElementById('audio-duration').textContent = '-';
+        document.getElementById('audio-samplerate').textContent = '-';
+        document.getElementById('audio-channels').textContent = '-';
+        document.getElementById('duration').textContent = '0:00';
+        document.getElementById('current-time').textContent = '0:00';
+        document.getElementById('progress-bar').style.width = '0%';
+        
+        const waveform = document.getElementById('waveform');
+        const noAudioMsg = document.getElementById('no-audio-message');
+        
+        waveform.classList.add('d-none');
+        noAudioMsg.classList.remove('d-none');
+        
+        updateButtonState();
+    }
+    
+    // Mostrar/ocultar cargando
+    function showLoading() {
+        document.querySelector('.loading').classList.remove('d-none');
+    }
+    
+    function hideLoading() {
+        document.querySelector('.loading').classList.add('d-none');
+    }
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inicializar modals
+        speedModal = new bootstrap.Modal(document.getElementById('speedModal'));
+        extractModal = new bootstrap.Modal(document.getElementById('extractModal'));
+        sampleRateModal = new bootstrap.Modal(document.getElementById('sampleRateModal'));
+        
+        // Cargar archivos
+        loadFileList();
+        
+        // Player controls
+        document.getElementById('play-pause-btn').addEventListener('click', function() {
+            if (isPlaying) {
+                audioPlayer.pause();
+                this.innerHTML = '<i class="fas fa-play"></i>';
+            } else {
+                audioPlayer.play();
+                this.innerHTML = '<i class="fas fa-pause"></i>';
+            }
+            isPlaying = !isPlaying;
+        });
+        
+        document.getElementById('prev-btn').addEventListener('click', playPreviousFile);
+        document.getElementById('next-btn').addEventListener('click', playNextFile);
+        
+        // Formulario de subida
+        document.getElementById('upload-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('file-input');
+            if (!fileInput.files.length) {
+                alert('Por favor, selecciona un archivo');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('session_id', sessionId);
+            
+            showLoading();
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                fileInput.value = '';
+                
+                if (data.success) {
+                    loadFileList();
+                    
+                    // Si es el primer archivo, reproducirlo automáticamente
+                    if (allFiles.length === 0 && data.files.length > 0) {
+                        setTimeout(() => {
+                            playFile(data.files[0].id);
+                        }, 500);
+                    }
+                } else {
+                    alert('Error al subir el archivo: ' + data.message);
+                }
+            })
+            .catch(error => {
+                hideLoading();
+                console.error('Error al subir el archivo:', error);
+            });
+        });
+        
+        // Audio player events
+        audioPlayer.addEventListener('timeupdate', function() {
+            const currentTime = audioPlayer.currentTime;
+            const duration = audioPlayer.duration;
+            
+            document.getElementById('current-time').textContent = formatTime(currentTime);
+            document.getElementById('progress-bar').style.width = (currentTime / duration * 100) + '%';
+        });
+        
+        audioPlayer.addEventListener('ended', function() {
+            document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-play"></i>';
+            isPlaying = false;
+            
+            // Auto play next
+            const currentIndex = allFiles.findIndex(f => f.id === currentFileId);
+            if (currentIndex < allFiles.length - 1) {
+                playFile(allFiles[currentIndex + 1].id);
+            }
+        });
+        
+        // Operation buttons
+        document.getElementById('btn-reverse').addEventListener('click', function() {
+            processAudio('reverse');
+        });
+        
+        document.getElementById('btn-amplify').addEventListener('click', function() {
+            processAudio('amplify', { factor: 1.5 });
+        });
+        
+        document.getElementById('btn-speed').addEventListener('click', function() {
+            document.getElementById('speed-factor').value = 1;
+            document.getElementById('speed-value').textContent = '1.0x';
+            speedModal.show();
+        });
+        
+        document.getElementById('speed-factor').addEventListener('input', function() {
+            document.getElementById('speed-value').textContent = parseFloat(this.value).toFixed(1) + 'x';
+        });
+        
+        document.getElementById('apply-speed').addEventListener('click', function() {
+            const speedFactor = parseFloat(document.getElementById('speed-factor').value);
+            processAudio('change_speed', { speed_factor: speedFactor });
+            speedModal.hide();
+        });
+        
+        document.getElementById('btn-extract').addEventListener('click', function() {
+            const file = allFiles.find(f => f.id === currentFileId);
+            if (!file) return;
+            
+            document.getElementById('start-time').value = 0;
+            document.getElementById('start-time').max = Math.max(0, file.duration - 1);
+            document.getElementById('duration').value = Math.min(30, file.duration);
+            document.getElementById('duration').max = file.duration;
+            
+            extractModal.show();
+        });
+        
+        document.getElementById('apply-extract').addEventListener('click', function() {
+            const startSec = parseFloat(document.getElementById('start-time').value);
+            const durationSec = parseFloat(document.getElementById('duration').value);
+            
+            // Validar que los valores sean válidos
+            if (isNaN(startSec) || isNaN(durationSec) || startSec < 0 || durationSec <= 0) {
+                alert('Por favor, ingrese valores válidos para el segundo inicial y la duración.');
+                return;
+            }
+            
+            processAudio('extract_segment', { 
+                start_sec: startSec, 
+                duration_sec: durationSec 
+            });
+            
+            extractModal.hide();
+        });
+        
+        document.getElementById('btn-swap').addEventListener('click', function() {
+            processAudio('swap_channels');
+        });
+        
+        document.getElementById('btn-sample-rate').addEventListener('click', function() {
+            sampleRateModal.show();
+        });
+        
+        document.getElementById('apply-sample-rate').addEventListener('click', function() {
+            const sampleRate = document.getElementById('sample-rate').value;
+            processAudio('change_sample_rate', { sample_rate: parseInt(sampleRate) });
+            sampleRateModal.hide();
+        });
+    });
+</script>
+</body>
+</html>
